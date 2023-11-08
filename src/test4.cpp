@@ -39,9 +39,9 @@ void read_vector(std::string path) {
         int val;
         file_in.read(reinterpret_cast<char *>(&val), sizeof(val));
         if (val >= 0) {
-            Rcout << val << " ";
+            //Rcout << val << " ";
         } else {
-            Rcout << "\n";
+            //Rcout << "\n";
         }
     }
     file_in.close();   
@@ -56,11 +56,11 @@ void read_vector_mmap(std::string path) {
     struct stat st;
     fstat(file_in, &st);
     
-    size_t len = getpagesize();
-    Rprintf("page size: %d\n", len);
-    Rprintf("file size: %d\n", st.st_size);
+    size_t len_page = getpagesize();
+    //Rprintf("page size: %d\n", len_page);
+    //Rprintf("file size: %d\n", st.st_size);
 
-    int *buffer = (int *)reinterpret_cast<char *> (mmap(NULL, len, PROT_READ, MAP_PRIVATE, file_in, 0));
+    int *buffer = (int *)reinterpret_cast<char *> (mmap(NULL, len_page, PROT_READ, MAP_PRIVATE, file_in, 0));
     //char *buffer = (char *)reinterpret_cast<char *> (mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, file_in, 0));
     //int *buffer = (int *)mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, file_in, 0);
     
@@ -69,20 +69,25 @@ void read_vector_mmap(std::string path) {
     }
     for (int i = 0; i < st.st_size / sizeof(int); i++) {
         if (buffer[i] >= 0) {
-            Rcout << buffer[i] << " ";
+            //Rcout << buffer[i] << " ";
         } else {
-            Rcout << "\n";
+            //Rcout << "\n";
         }
     }
-    munmap(buffer, len);
+    munmap(buffer, len_page);
 
 }
 
 /*** R
-lis <- list(c(1, 2, 3, 4), c(10:100))
+lis <- rep(list(1:1000), 10000)
 #lis <- list(c(1, 2, 3, 4, 5))
-write_vector("test.dat", lis)
-read_vector("test.dat")
-read_vector_mmap("test.dat")
+
+microbenchmark::microbenchmark(
+    write_vector("test.dat", lis), 
+    times = 10
+)
+microbenchmark::microbenchmark(
+    read_vector("test.dat"),
+    read_vector_mmap("test.dat"))
 */
 
