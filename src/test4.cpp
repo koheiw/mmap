@@ -25,23 +25,46 @@ void write_vector(std::string path, const List texts_) {
     // Now write each vector one by one
     for (auto text : texts) {         
         text.push_back(-1);
-        file_out.write(reinterpret_cast<const char *>(&text[0]), text.size()*sizeof(int));
+        file_out.write(reinterpret_cast<const char *>(&text[0]), text.size() * sizeof(int));
     }
     file_out.close();   
 }
 
 // [[Rcpp::export]]
-void read_vector(std::string path) {
+void read_vector_memory(const List texts_) {
+    
+    for (size_t h = 0; h < texts_.size(); h++) {
+        Text text_ = texts_[h];
+        for (size_t i = 0; i < text_.size(); i++) {      
+            if (text_[i] >= 0) {
+                Rcout << text_[i] << " ";
+            } else {
+                Rcout << "\n";
+            }
+        }
+    }
+  
+}
+
+// [[Rcpp::export]]
+void read_vector_file(std::string path) {
     
     ifstream file_in(path, std::ios::in | std::ifstream::binary);
     
-    while (!file_in.eof()) {
+    if (!file_in) 
+        throw std::invalid_argument("Cannot find " + path);
+    
+    while (true) {
+
         int val;
-        file_in.read(reinterpret_cast<char *>(&val), sizeof(val));
+        file_in.read(reinterpret_cast<char *>(&val), sizeof(int));
+        if (file_in.eof())
+            break;
+            
         if (val >= 0) {
-            //Rcout << val << " ";
+            Rcout << val << " ";
         } else {
-            //Rcout << "\n";
+            Rcout << "\n";
         }
     }
     file_in.close();   
@@ -53,6 +76,9 @@ void read_vector_mmap(std::string path) {
     int file_in = open(path.c_str(), O_RDONLY, 0);
     //posix_fallocate(file_in, 0, 4096);
     
+    if (!file_in) 
+        throw std::invalid_argument("Cannot find " + path);
+        
     struct stat st;
     fstat(file_in, &st);
     
@@ -61,17 +87,15 @@ void read_vector_mmap(std::string path) {
     //Rprintf("file size: %d\n", st.st_size);
 
     int *buffer = (int *)reinterpret_cast<char *> (mmap(NULL, len_page, PROT_READ, MAP_PRIVATE, file_in, 0));
-    //char *buffer = (char *)reinterpret_cast<char *> (mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, file_in, 0));
-    //int *buffer = (int *)mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, file_in, 0);
-    
+
     if (buffer == MAP_FAILED) {
-        perror("Error mmapping the file");
+        throw logic_error("Error mmapping the file");
     }
     for (int i = 0; i < st.st_size / sizeof(int); i++) {
         if (buffer[i] >= 0) {
-            //Rcout << buffer[i] << " ";
+            Rcout << buffer[i] << " ";
         } else {
-            //Rcout << "\n";
+            Rcout << "\n";
         }
     }
     munmap(buffer, len_page);
@@ -79,15 +103,17 @@ void read_vector_mmap(std::string path) {
 }
 
 /*** R
-lis <- rep(list(1:1000), 10000)
-#lis <- list(c(1, 2, 3, 4, 5))
+#lis <- rep(list(1:1000), 10000)
+lis <- list(c(1, 2, 3, 4, 5))
 
-microbenchmark::microbenchmark(
-    write_vector("test.dat", lis), 
-    times = 10
-)
-microbenchmark::microbenchmark(
-    read_vector("test.dat"),
-    read_vector_mmap("test.dat"))
+write_vector("src/test.dat", lis)
+system("od -td src/test.dat")
+read_vector_file("src/test.dat")
+read_vector_mmap("src/test.dat")
+# microbenchmark::microbenchmark(
+#     read_vector_memory(lis),
+#     read_vector_file("src/test.dat"),
+#     #read_vector_mmap("src/test.dat"),
+#     times = 1)
 */
 
